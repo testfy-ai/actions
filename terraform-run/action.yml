@@ -14,8 +14,18 @@ inputs:
     default: '.'
 
   # Format check options
+  run-fmt:
+    description: 'Run terraform fmt check'
+    required: false
+    default: 'false'
   fail-on-fmt-error:
     description: 'Fail the workflow if terraform fmt check fails'
+    required: false
+    default: 'false'
+
+  # Validate options
+  run-validate:
+    description: 'Run terraform validate after init'
     required: false
     default: 'false'
 
@@ -37,7 +47,7 @@ inputs:
   run-plan:
     description: 'Run terraform plan after init'
     required: false
-    default: 'true'
+    default: 'false'
   plan-file:
     description: 'Output plan file name'
     required: false
@@ -49,7 +59,7 @@ inputs:
   plan-generate-json:
     description: 'Generate JSON output of the plan'
     required: false
-    default: 'true'
+    default: 'false'
 
   # Apply options
   run-apply:
@@ -67,14 +77,14 @@ inputs:
 
 outputs:
   fmt-outcome:
-    description: 'Terraform format check outcome (success, failure)'
-    value: ${{ steps.fmt.outputs.outcome }}
+    description: 'Terraform format check outcome (success, failure, skipped)'
+    value: ${{ steps.fmt.outputs.outcome || steps.fmt-skip.outputs.outcome }}
   init-outcome:
     description: 'Terraform init outcome (success, failure)'
     value: ${{ steps.init.outputs.outcome }}
   validate-outcome:
-    description: 'Terraform validate outcome (success, failure)'
-    value: ${{ steps.validate.outputs.outcome }}
+    description: 'Terraform validate outcome (success, failure, skipped)'
+    value: ${{ steps.validate.outputs.outcome || steps.validate-skip.outputs.outcome }}
   plan-outcome:
     description: 'Plan outcome (success, failure, skipped)'
     value: ${{ steps.plan.outputs.outcome || steps.plan-skip.outputs.outcome }}
@@ -105,6 +115,7 @@ runs:
   steps:
     - name: Terraform Format Check
       id: fmt
+      if: inputs.run-fmt == 'true'
       uses: actions/github-script@v8
       env:
         WORKING_DIR: ${{ inputs.working-directory }}
@@ -136,6 +147,14 @@ runs:
           }
 
           core.endGroup();
+
+    - name: Skip Format Check
+      id: fmt-skip
+      if: inputs.run-fmt != 'true'
+      uses: actions/github-script@v8
+      with:
+        script: |
+          core.setOutput('outcome', 'skipped');
 
     - name: Terraform Init
       id: init
@@ -194,6 +213,7 @@ runs:
 
     - name: Terraform Validate
       id: validate
+      if: inputs.run-validate == 'true'
       uses: actions/github-script@v8
       env:
         WORKING_DIR: ${{ inputs.working-directory }}
@@ -221,6 +241,14 @@ runs:
           }
 
           core.endGroup();
+
+    - name: Skip Validate
+      id: validate-skip
+      if: inputs.run-validate != 'true'
+      uses: actions/github-script@v8
+      with:
+        script: |
+          core.setOutput('outcome', 'skipped');
 
     - name: Terraform Plan
       id: plan
