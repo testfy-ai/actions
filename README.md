@@ -8,6 +8,7 @@ A collection of reusable GitHub Actions for Terraform and Azure workflows.
 |--------|-------------|
 | [setup-azure-terraform](#setup-azure-terraform) | Setup Azure CLI, Terraform, and login with OIDC |
 | [terraform-run](#terraform-run) | Run terraform fmt, init, validate, plan, and apply |
+| [terraform-command](#terraform-command) | Run ad-hoc Terraform commands (output, state, import, etc.) |
 | [terraform-summary](#terraform-summary) | Create a validation summary for PRs |
 | [terraform-plan-extract](#terraform-plan-extract) | Extract and parse plan changes from JSON |
 
@@ -184,6 +185,98 @@ jobs:
         with:
           working-directory: ./infra
           run-apply: true
+```
+
+---
+
+## terraform-command
+
+Run common Terraform commands for state inspection, management, and debugging.
+
+### Inputs
+
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `working-directory` | Working directory for Terraform | No | `.` |
+| `command` | Terraform command to run | **Yes** | - |
+| `resource-address` | Resource address (required for `state-show`, `import`) | No | `''` |
+| `lock-id` | Lock ID (required for `force-unlock`) | No | `''` |
+| `import-id` | Azure resource ID (required for `import`) | No | `''` |
+| `output-name` | Output name (for `output` command, leave empty for all) | No | `''` |
+
+### Supported Commands
+
+| Command | Description | Required Inputs |
+|---------|-------------|-----------------|
+| `output` | Show Terraform outputs | `output-name` (optional) |
+| `state-list` | List resources in state | - |
+| `state-show` | Show details of a resource | `resource-address` |
+| `refresh` | Refresh state from infrastructure | - |
+| `force-unlock` | Manually unlock state | `lock-id` |
+| `import` | Import existing resource into state | `resource-address`, `import-id` |
+| `providers` | Show required providers | - |
+| `version` | Show Terraform version | - |
+
+### Outputs
+
+| Output | Description |
+|--------|-------------|
+| `exit-code` | Command exit code |
+| `outcome` | Command outcome (`success`, `failure`) |
+| `output-file` | Path to the command output file |
+
+### Example: Show All Outputs
+
+```yaml
+- name: Show Outputs
+  uses: testfy-ai/actions/terraform-command@main
+  with:
+    working-directory: ./envs/prod
+    command: output
+```
+
+### Example: List State Resources
+
+```yaml
+- name: List State
+  uses: testfy-ai/actions/terraform-command@main
+  with:
+    working-directory: ./envs/prod
+    command: state-list
+```
+
+### Example: Show Resource Details
+
+```yaml
+- name: Show Resource
+  uses: testfy-ai/actions/terraform-command@main
+  with:
+    working-directory: ./envs/prod
+    command: state-show
+    resource-address: 'azurerm_resource_group.main'
+```
+
+### Example: Import Existing Resource
+
+```yaml
+- name: Import Resource
+  uses: testfy-ai/actions/terraform-command@main
+  with:
+    working-directory: ./envs/prod
+    command: import
+    resource-address: 'azurerm_resource_group.imported'
+    import-id: '/subscriptions/xxx/resourceGroups/my-rg'
+```
+
+### Example: Force Unlock State
+
+```yaml
+- name: Force Unlock
+  uses: testfy-ai/actions/terraform-command@main
+  with:
+    working-directory: ./envs/prod
+    command: force-unlock
+    lock-id: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
 ```
 
 ---
