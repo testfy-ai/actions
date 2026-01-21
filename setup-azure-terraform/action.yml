@@ -1,0 +1,90 @@
+name: 'Setup Azure and Terraform'
+description: 'Setup Azure CLI, Terraform, and login to Azure with OIDC'
+author: 'testfy.ai'
+
+branding:
+  icon: 'cloud'
+  color: 'blue'
+
+inputs:
+  # Terraform configuration
+  terraform-version:
+    description: 'Terraform version to install'
+    required: false
+    default: 'latest'
+  terraform-wrapper:
+    description: 'Enable terraform wrapper for output parsing'
+    required: false
+    default: 'true'
+
+  # Azure CLI configuration
+  azure-cli-version:
+    description: 'Azure CLI version to install'
+    required: false
+    default: 'latest'
+
+  # Azure OIDC credentials (required)
+  azure-client-id:
+    description: 'Azure Client ID for OIDC'
+    required: true
+  azure-tenant-id:
+    description: 'Azure Tenant ID'
+    required: true
+  azure-subscription-id:
+    description: 'Azure Subscription ID'
+    required: true
+
+outputs:
+  terraform-version:
+    description: 'The installed Terraform version'
+    value: ${{ steps.terraform.outputs.terraform-version }}
+  azure-cli-version:
+    description: 'The installed Azure CLI version'
+    value: ${{ steps.verify.outputs.azure-cli-version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Azure CLI
+      uses: azure/cli@v2
+      with:
+        azcliversion: ${{ inputs.azure-cli-version }}
+        inlineScript: |
+          az version
+
+    - name: Setup Terraform
+      id: terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform-version }}
+        terraform_wrapper: ${{ inputs.terraform-wrapper }}
+
+    - name: Azure Login (OIDC)
+      uses: azure/login@v2
+      with:
+        client-id: ${{ inputs.azure-client-id }}
+        tenant-id: ${{ inputs.azure-tenant-id }}
+        subscription-id: ${{ inputs.azure-subscription-id }}
+
+    - name: Verify Setup
+      id: verify
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const { execSync } = require('child_process');
+
+          core.startGroup('Terraform Version');
+          const tfVersion = execSync('terraform version', { encoding: 'utf-8' });
+          core.info(tfVersion);
+          core.endGroup();
+
+          core.startGroup('Azure CLI Version');
+          const azVersion = execSync('az version --query \'"azure-cli"\' -o tsv', { encoding: 'utf-8' }).trim();
+          core.info(`Azure CLI version: ${azVersion}`);
+          core.setOutput('azure-cli-version', azVersion);
+          core.endGroup();
+
+          core.startGroup('Azure Account');
+          const azAccount = execSync('az account show --query "{subscription:name, tenant:tenantId}" -o table', { encoding: 'utf-8' });
+          core.info(azAccount);
+          core.endGroup();

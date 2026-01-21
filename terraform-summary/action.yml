@@ -1,0 +1,111 @@
+name: 'Terraform Validation Summary'
+description: 'Create a summary of Terraform validation results for PR'
+author: 'testfy.ai'
+
+branding:
+  icon: 'file-text'
+  color: 'green'
+
+inputs:
+  # Environment identification
+  environment:
+    description: 'Environment name'
+    required: true
+  working-directory:
+    description: 'Working directory where plan-output.txt is located'
+    required: true
+
+  # Step outcomes
+  fmt-outcome:
+    description: 'Format check outcome (success, failure)'
+    required: true
+  init-outcome:
+    description: 'Init outcome (success, failure)'
+    required: true
+  validate-outcome:
+    description: 'Validate outcome (success, failure)'
+    required: true
+  plan-outcome:
+    description: 'Plan outcome (success, failure, skipped)'
+    required: true
+
+  # Plan details
+  plan-has-changes:
+    description: 'Whether the plan has changes (true/false)'
+    required: false
+    default: 'false'
+
+outputs:
+  result:
+    description: 'Overall result (success, failure)'
+    value: ${{ steps.summary.outputs.result }}
+  summary-file:
+    description: 'Path to the summary file'
+    value: ${{ steps.summary.outputs.summary-file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Create Summary
+      id: summary
+      uses: actions/github-script@v8
+      env:
+        ENVIRONMENT: ${{ inputs.environment }}
+        WORKING_DIR: ${{ inputs.working-directory }}
+        FMT_OUTCOME: ${{ inputs.fmt-outcome }}
+        INIT_OUTCOME: ${{ inputs.init-outcome }}
+        VALIDATE_OUTCOME: ${{ inputs.validate-outcome }}
+        PLAN_OUTCOME: ${{ inputs.plan-outcome }}
+        PLAN_HAS_CHANGES: ${{ inputs.plan-has-changes }}
+      with:
+        script: |
+          const fs = require('fs');
+          const env = process.env.ENVIRONMENT;
+          const workingDir = process.env.WORKING_DIR;
+          const fmtOutcome = process.env.FMT_OUTCOME;
+          const initOutcome = process.env.INIT_OUTCOME;
+          const validateOutcome = process.env.VALIDATE_OUTCOME;
+          const planOutcome = process.env.PLAN_OUTCOME;
+          const planHasChanges = process.env.PLAN_HAS_CHANGES === 'true';
+
+          core.startGroup(`Creating validation summary for ${env}`);
+
+          const icon = (outcome) => outcome === 'success' ? '✅' : '❌';
+
+          let planStatus = '✅ No changes';
+          if (planOutcome === 'skipped') planStatus = '⏭️ Skipped';
+          else if (planOutcome === 'failure') planStatus = '❌ Error';
+          else if (planHasChanges) planStatus = '⚠️ Changes detected';
+
+          let summary = `## Environment: \`${env}\`\n\n`;
+          summary += `| Step | Status |\n|------|--------|\n`;
+          summary += `| Format | ${icon(fmtOutcome)} |\n`;
+          summary += `| Init | ${icon(initOutcome)} |\n`;
+          summary += `| Validate | ${icon(validateOutcome)} |\n`;
+          summary += `| Plan | ${planStatus} |\n\n`;
+
+          // Add plan output if available
+          const planFile = `${workingDir}/plan-output.txt`;
+          if (fs.existsSync(planFile)) {
+            const planOutput = fs.readFileSync(planFile, 'utf8');
+            const lines = planOutput.split('\n').slice(-100).join('\n');
+            summary += `<details>\n<summary>Plan Output</summary>\n\n\`\`\`hcl\n${lines}\n\`\`\`\n</details>\n`;
+          }
+
+          // Write to job summary
+          await core.summary.addRaw(summary).write();
+
+          // Write to file for artifact
+          const summaryFile = `summary-${env}.md`;
+          fs.writeFileSync(summaryFile, summary);
+          core.info(`Summary written to ${summaryFile}`);
+
+          core.endGroup();
+
+          // Determine overall result
+          const failed = fmtOutcome === 'failure' || initOutcome === 'failure' ||
+                        validateOutcome === 'failure' || planOutcome === 'failure';
+          const result = failed ? 'failure' : 'success';
+
+          core.setOutput('result', result);
+          core.setOutput('summary-file', summaryFile);

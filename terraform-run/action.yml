@@ -1,0 +1,372 @@
+name: 'Terraform Run'
+description: 'Run terraform format check, init, validate, and optionally plan/apply'
+author: 'testfy.ai'
+
+branding:
+  icon: 'terminal'
+  color: 'purple'
+
+inputs:
+  # Working directory
+  working-directory:
+    description: 'Working directory for Terraform'
+    required: false
+    default: '.'
+
+  # Format check options
+  fail-on-fmt-error:
+    description: 'Fail the workflow if terraform fmt check fails'
+    required: false
+    default: 'false'
+
+  # Init options
+  backend-config:
+    description: 'Backend configuration options for terraform init (e.g., -backend-config=key=value)'
+    required: false
+    default: ''
+  init-upgrade:
+    description: 'Run terraform init with -upgrade flag to update providers'
+    required: false
+    default: 'false'
+  init-reconfigure:
+    description: 'Run terraform init with -reconfigure flag to reconfigure backend'
+    required: false
+    default: 'false'
+
+  # Plan options
+  run-plan:
+    description: 'Run terraform plan after init'
+    required: false
+    default: 'true'
+  plan-file:
+    description: 'Output plan file name'
+    required: false
+    default: 'tfplan'
+  plan-destroy:
+    description: 'Run destroy plan instead of apply plan'
+    required: false
+    default: 'false'
+  plan-generate-json:
+    description: 'Generate JSON output of the plan'
+    required: false
+    default: 'true'
+
+  # Apply options
+  run-apply:
+    description: 'Run terraform apply (requires plan file from previous run or use-plan-file)'
+    required: false
+    default: 'false'
+  use-plan-file:
+    description: 'Path to existing plan file to apply (skips plan step when provided)'
+    required: false
+    default: ''
+  apply-output-file:
+    description: 'Output file name for apply output'
+    required: false
+    default: 'apply-output.txt'
+
+outputs:
+  fmt-outcome:
+    description: 'Terraform format check outcome (success, failure)'
+    value: ${{ steps.fmt.outputs.outcome }}
+  init-outcome:
+    description: 'Terraform init outcome (success, failure)'
+    value: ${{ steps.init.outputs.outcome }}
+  validate-outcome:
+    description: 'Terraform validate outcome (success, failure)'
+    value: ${{ steps.validate.outputs.outcome }}
+  plan-outcome:
+    description: 'Plan outcome (success, failure, skipped)'
+    value: ${{ steps.plan.outputs.outcome || steps.plan-skip.outputs.outcome }}
+  apply-outcome:
+    description: 'Apply outcome (success, failure, skipped)'
+    value: ${{ steps.apply.outputs.outcome || steps.apply-skip.outputs.outcome }}
+  plan-exitcode:
+    description: 'Terraform plan exit code (0=no changes, 1=error, 2=changes)'
+    value: ${{ steps.plan.outputs.exitcode }}
+  plan-has-changes:
+    description: 'Whether the plan has changes (true/false)'
+    value: ${{ steps.plan.outputs.has_changes || steps.plan-skip.outputs.has_changes }}
+  plan-output-file:
+    description: 'Path to the plan output text file'
+    value: ${{ inputs.working-directory }}/plan-output.txt
+  plan-file:
+    description: 'Path to the plan binary file'
+    value: ${{ inputs.working-directory }}/${{ inputs.plan-file }}
+  plan-json-file:
+    description: 'Path to the plan JSON file (if generated)'
+    value: ${{ inputs.working-directory }}/${{ inputs.plan-file }}.json
+  apply-output-file:
+    description: 'Path to the apply output file'
+    value: ${{ inputs.working-directory }}/${{ inputs.apply-output-file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Terraform Format Check
+      id: fmt
+      uses: actions/github-script@v8
+      env:
+        WORKING_DIR: ${{ inputs.working-directory }}
+        FAIL_ON_FMT_ERROR: ${{ inputs.fail-on-fmt-error }}
+      with:
+        script: |
+          const { execSync } = require('child_process');
+          const workingDir = process.env.WORKING_DIR;
+          const failOnFmtError = process.env.FAIL_ON_FMT_ERROR === 'true';
+
+          core.startGroup(`Terraform Format Check in ${workingDir}`);
+
+          try {
+            execSync('terraform fmt -check -recursive', {
+              cwd: workingDir,
+              encoding: 'utf8',
+              stdio: ['pipe', 'pipe', 'pipe']
+            });
+            core.setOutput('outcome', 'success');
+            core.info('Terraform format check passed');
+          } catch (error) {
+            core.setOutput('outcome', 'failure');
+            const message = 'Terraform files need formatting. Run: terraform fmt -recursive';
+            if (failOnFmtError) {
+              core.setFailed(message);
+            } else {
+              core.warning(message);
+            }
+          }
+
+          core.endGroup();
+
+    - name: Terraform Init
+      id: init
+      uses: actions/github-script@v8
+      env:
+        WORKING_DIR: ${{ inputs.working-directory }}
+        BACKEND_CONFIG: ${{ inputs.backend-config }}
+        INIT_UPGRADE: ${{ inputs.init-upgrade }}
+        INIT_RECONFIGURE: ${{ inputs.init-reconfigure }}
+      with:
+        script: |
+          const { execSync } = require('child_process');
+          const workingDir = process.env.WORKING_DIR;
+          const backendConfig = process.env.BACKEND_CONFIG;
+          const initUpgrade = process.env.INIT_UPGRADE === 'true';
+          const initReconfigure = process.env.INIT_RECONFIGURE === 'true';
+
+          core.startGroup(`Terraform Init in ${workingDir}`);
+
+          try {
+            let cmd = 'terraform init -input=false -no-color';
+
+            if (initUpgrade) {
+              cmd += ' -upgrade';
+              core.info('Using -upgrade flag');
+            }
+
+            if (initReconfigure) {
+              cmd += ' -reconfigure';
+              core.info('Using -reconfigure flag');
+            }
+
+            if (backendConfig) {
+              cmd += ` ${backendConfig}`;
+              core.info(`Using backend config: ${backendConfig}`);
+            }
+
+            core.info(`Running: ${cmd}`);
+            const output = execSync(cmd, {
+              cwd: workingDir,
+              encoding: 'utf8',
+              stdio: ['pipe', 'pipe', 'pipe']
+            });
+
+            core.info(output);
+            core.setOutput('outcome', 'success');
+            core.info('Terraform init completed successfully');
+          } catch (error) {
+            core.error(error.stdout || error.message);
+            if (error.stderr) core.error(error.stderr);
+            core.setOutput('outcome', 'failure');
+            core.setFailed(`Terraform init failed: ${error.message}`);
+          }
+
+          core.endGroup();
+
+    - name: Terraform Validate
+      id: validate
+      uses: actions/github-script@v8
+      env:
+        WORKING_DIR: ${{ inputs.working-directory }}
+      with:
+        script: |
+          const { execSync } = require('child_process');
+          const workingDir = process.env.WORKING_DIR;
+
+          core.startGroup(`Terraform Validate in ${workingDir}`);
+
+          try {
+            const output = execSync('terraform validate -no-color', {
+              cwd: workingDir,
+              encoding: 'utf8',
+              stdio: ['pipe', 'pipe', 'pipe']
+            });
+            core.info(output);
+            core.setOutput('outcome', 'success');
+            core.info('Terraform validate passed');
+          } catch (error) {
+            core.error(error.stdout || error.message);
+            if (error.stderr) core.error(error.stderr);
+            core.setOutput('outcome', 'failure');
+            core.setFailed(`Terraform validate failed: ${error.message}`);
+          }
+
+          core.endGroup();
+
+    - name: Terraform Plan
+      id: plan
+      if: (inputs.run-plan == 'true' || inputs.run-apply == 'true') && inputs.use-plan-file == ''
+      uses: actions/github-script@v8
+      env:
+        WORKING_DIR: ${{ inputs.working-directory }}
+        PLAN_FILE: ${{ inputs.plan-file }}
+        DESTROY: ${{ inputs.plan-destroy }}
+        GENERATE_JSON: ${{ inputs.plan-generate-json }}
+      with:
+        script: |
+          const { execSync, spawnSync } = require('child_process');
+          const fs = require('fs');
+          const workingDir = process.env.WORKING_DIR;
+          const planFile = process.env.PLAN_FILE;
+          const isDestroy = process.env.DESTROY === 'true';
+          const generateJson = process.env.GENERATE_JSON === 'true';
+
+          core.startGroup(`Terraform Plan in ${workingDir}`);
+
+          if (isDestroy) {
+            core.info('Running destroy plan');
+          }
+
+          // Run plan (detailed-exitcode: 0=no changes, 1=error, 2=changes)
+          const planResult = spawnSync('terraform', [
+            'plan',
+            '-detailed-exitcode',
+            '-input=false',
+            '-no-color',
+            ...(isDestroy ? ['-destroy'] : []),
+            `-out=${planFile}`
+          ], {
+            cwd: workingDir,
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'pipe']
+          });
+
+          const exitcode = planResult.status;
+          const output = planResult.stdout + planResult.stderr;
+
+          // Write output to file
+          fs.writeFileSync(`${workingDir}/plan-output.txt`, output);
+          core.info(output);
+
+          // Set outputs
+          core.setOutput('exitcode', exitcode.toString());
+
+          // Exit code: 0 = no changes, 1 = error, 2 = changes
+          const hasChanges = exitcode === 2;
+          core.setOutput('has_changes', hasChanges.toString());
+
+          if (exitcode === 1) {
+            core.setOutput('outcome', 'failure');
+            core.setFailed('Terraform plan failed with errors');
+            core.endGroup();
+            return;
+          }
+
+          core.setOutput('outcome', 'success');
+          core.info(`Plan completed: exitcode=${exitcode}, has_changes=${hasChanges}`);
+
+          // Generate JSON if requested and there are changes
+          if (generateJson && hasChanges) {
+            core.info('Generating plan JSON...');
+            try {
+              const jsonResult = execSync(`terraform show -no-color -json ${planFile}`, {
+                cwd: workingDir,
+                encoding: 'utf8'
+              });
+              fs.writeFileSync(`${workingDir}/${planFile}.json`, jsonResult);
+              core.info('Plan JSON generated successfully');
+            } catch (error) {
+              core.error(`Failed to generate JSON: ${error.message}`);
+            }
+          }
+
+          core.endGroup();
+
+    - name: Skip Plan
+      id: plan-skip
+      if: (inputs.run-plan != 'true' && inputs.run-apply != 'true') || inputs.use-plan-file != ''
+      uses: actions/github-script@v8
+      with:
+        script: |
+          core.setOutput('outcome', 'skipped');
+          core.setOutput('has_changes', 'false');
+
+    - name: Terraform Apply
+      id: apply
+      if: inputs.run-apply == 'true'
+      uses: actions/github-script@v8
+      env:
+        WORKING_DIR: ${{ inputs.working-directory }}
+        PLAN_FILE: ${{ inputs.plan-file }}
+        USE_PLAN_FILE: ${{ inputs.use-plan-file }}
+        OUTPUT_FILE: ${{ inputs.apply-output-file }}
+      with:
+        script: |
+          const { spawnSync } = require('child_process');
+          const fs = require('fs');
+          const workingDir = process.env.WORKING_DIR;
+          const defaultPlanFile = process.env.PLAN_FILE;
+          const usePlanFile = process.env.USE_PLAN_FILE;
+          const outputFile = process.env.OUTPUT_FILE;
+
+          // Use provided plan file or default
+          const planFile = usePlanFile || defaultPlanFile;
+
+          core.startGroup(`Terraform Apply in ${workingDir}`);
+
+          core.info(`Applying plan: ${planFile}`);
+
+          const result = spawnSync('terraform', [
+            'apply',
+            '-input=false',
+            '-auto-approve',
+            '-no-color',
+            planFile
+          ], {
+            cwd: workingDir,
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'pipe']
+          });
+
+          const output = result.stdout + result.stderr;
+
+          // Write output to file
+          fs.writeFileSync(`${workingDir}/${outputFile}`, output);
+          core.info(output);
+
+          if (result.status !== 0) {
+            core.setOutput('outcome', 'failure');
+            core.setFailed('Terraform apply failed');
+          } else {
+            core.setOutput('outcome', 'success');
+            core.info('Terraform apply completed successfully');
+          }
+
+          core.endGroup();
+
+    - name: Skip Apply
+      id: apply-skip
+      if: inputs.run-apply != 'true'
+      uses: actions/github-script@v8
+      with:
+        script: |
+          core.setOutput('outcome', 'skipped');
