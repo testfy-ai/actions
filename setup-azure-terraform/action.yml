@@ -59,6 +59,36 @@ runs:
         terraform_version: ${{ inputs.terraform-version }}
         terraform_wrapper: ${{ inputs.terraform-wrapper }}
 
+    - name: Set Terraform Azure Environment Variables
+      uses: actions/github-script@v8
+      env:
+        USE_OIDC: 'true'
+        USE_AZUREAD: 'true'
+        CLIENT_ID: ${{ inputs.azure-client-id }}
+        TENANT_ID: ${{ inputs.azure-tenant-id }}
+        SUBSCRIPTION_ID: ${{ inputs.azure-subscription-id }}
+      with:
+        script: |
+          const fs = require('fs');
+          const envFile = process.env.GITHUB_ENV;
+
+          core.startGroup('Setting Terraform Azure Environment Variables');
+
+          const vars = {
+            'ARM_USE_OIDC': process.env.USE_OIDC,
+            'ARM_USE_AZUREAD': process.env.USE_AZUREAD,
+            'ARM_CLIENT_ID': process.env.CLIENT_ID,
+            'ARM_TENANT_ID': process.env.TENANT_ID,
+            'ARM_SUBSCRIPTION_ID': process.env.SUBSCRIPTION_ID
+          };
+
+          for (const [key, value] of Object.entries(vars)) {
+            fs.appendFileSync(envFile, `${key}=${value}\n`);
+            core.info(`Set ${key}`);
+          }
+
+          core.endGroup();
+
     - name: Azure Login (OIDC)
       uses: azure/login@v2
       with:
