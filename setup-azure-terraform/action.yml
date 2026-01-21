@@ -17,12 +17,6 @@ inputs:
     required: false
     default: 'true'
 
-  # Azure CLI configuration
-  azure-cli-version:
-    description: 'Azure CLI version to install'
-    required: false
-    default: 'latest'
-
   # Azure OIDC credentials (required)
   azure-client-id:
     description: 'Azure Client ID for OIDC'
@@ -45,13 +39,6 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Setup Azure CLI
-      uses: azure/cli@v2
-      with:
-        azcliversion: ${{ inputs.azure-cli-version }}
-        inlineScript: |
-          az version
-
     - name: Setup Terraform
       id: terraform
       uses: hashicorp/setup-terraform@v3
