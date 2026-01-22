@@ -11,6 +11,7 @@ A collection of reusable GitHub Actions for Terraform and Azure workflows.
 | [terraform-command](#terraform-command) | Run ad-hoc Terraform commands (output, state, import, etc.) |
 | [terraform-summary](#terraform-summary) | Create a validation summary for PRs |
 | [terraform-plan-extract](#terraform-plan-extract) | Extract and parse plan changes from JSON |
+| [cleanup-workflow-runs](#cleanup-workflow-runs) | Delete old workflow runs to keep the repository clean |
 
 ---
 
@@ -431,6 +432,75 @@ add: "0"
 change: "0"
 destroy: "0"
 ```
+
+---
+
+## cleanup-workflow-runs
+
+Delete old workflow runs to keep the repository clean. Useful for scheduled maintenance.
+
+### Inputs
+
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `retention-days` | Delete runs older than X days | No | `30` |
+| `github-token` | GitHub token with actions:write permission | No | `${{ github.token }}` |
+
+### Outputs
+
+| Output | Description |
+|--------|-------------|
+| `total-deleted` | Total number of workflow runs deleted |
+| `total-skipped` | Total number of workflow runs skipped (in progress or protected) |
+| `total-errors` | Total number of errors encountered |
+
+### Example: Scheduled Cleanup
+
+```yaml
+name: Cleanup Workflow Runs
+
+on:
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: 'Delete runs older than X days'
+        required: true
+        type: number
+        default: 30
+  schedule:
+    - cron: '0 2 * * 1'  # Monday at 2:00 AM UTC
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete old workflow runs
+        uses: testfy-ai/actions/cleanup-workflow-runs@main
+        with:
+          retention-days: ${{ github.event.inputs.retention_days || 30 }}
+```
+
+### Example: With Custom Token
+
+```yaml
+- name: Delete old workflow runs
+  uses: testfy-ai/actions/cleanup-workflow-runs@main
+  with:
+    retention-days: 14
+    github-token: ${{ secrets.CUSTOM_PAT }}
+```
+
+### Summary Output
+
+The action generates a job summary with the cleanup results:
+
+| Metric | Count |
+|--------|-------|
+| Runs Deleted | 42 |
+| Runs Skipped | 3 |
+| Errors | 0 |
 
 ---
 
