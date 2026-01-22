@@ -74,6 +74,10 @@ inputs:
     description: 'Output file name for apply output'
     required: false
     default: 'apply-output.txt'
+  apply-parallelism:
+    description: 'Number of concurrent operations during apply (default: 10)'
+    required: false
+    default: ''
 
 outputs:
   fmt-outcome:
@@ -347,6 +351,7 @@ runs:
         PLAN_FILE: ${{ inputs.plan-file }}
         USE_PLAN_FILE: ${{ inputs.use-plan-file }}
         OUTPUT_FILE: ${{ inputs.apply-output-file }}
+        PARALLELISM: ${{ inputs.apply-parallelism }}
       with:
         script: |
           const { spawnSync } = require('child_process');
@@ -355,6 +360,7 @@ runs:
           const defaultPlanFile = process.env.PLAN_FILE;
           const usePlanFile = process.env.USE_PLAN_FILE;
           const outputFile = process.env.OUTPUT_FILE;
+          const parallelism = process.env.PARALLELISM;
 
           // Use provided plan file or default
           const planFile = usePlanFile || defaultPlanFile;
@@ -363,13 +369,16 @@ runs:
 
           core.info(`Applying plan: ${planFile}`);
 
-          const result = spawnSync('terraform', [
+          const args = [
             'apply',
             '-input=false',
             '-auto-approve',
             '-no-color',
+            ...(parallelism ? [`-parallelism=${parallelism}`] : []),
             planFile
-          ], {
+          ];
+
+          const result = spawnSync('terraform', args, {
             cwd: workingDir,
             encoding: 'utf8',
             stdio: ['pipe', 'pipe', 'pipe']
