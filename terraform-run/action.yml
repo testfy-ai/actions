@@ -316,8 +316,8 @@ runs:
           core.setOutput('outcome', 'success');
           core.info(`Plan completed: exitcode=${exitcode}, has_changes=${hasChanges}`);
 
-          // Generate JSON if requested and there are changes
-          if (generateJson && hasChanges) {
+          // Generate JSON if requested for all successful plan runs
+          if (generateJson) {
             core.info('Generating plan JSON...');
             try {
               const jsonResult = execSync(`terraform show -no-color -json ${planFile}`, {
