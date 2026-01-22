@@ -85,6 +85,7 @@ Run terraform format check, init, validate, and optionally plan/apply.
 | `run-apply` | Run terraform apply | No | `false` |
 | `use-plan-file` | Path to existing plan file to apply (skips plan step) | No | `''` |
 | `apply-output-file` | Output file name for apply output | No | `apply-output.txt` |
+| `apply-parallelism` | Number of concurrent operations during apply | No | `10` (Terraform default) |
 
 ### Outputs
 
