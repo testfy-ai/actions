@@ -47,7 +47,7 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Azure and Terraform
         uses: testfy-ai/actions/setup-azure-terraform@main
@@ -81,6 +81,7 @@ Run terraform format check, init, validate, and optionally plan/apply.
 | `plan-file` | Output plan file name | No | `tfplan` |
 | `plan-destroy` | Run destroy plan instead of apply plan | No | `false` |
 | `plan-generate-json` | Generate JSON output of the plan | No | `true` |
+| `plan-target` | Resource address(es) to target (comma or newline separated) | No | `''` |
 | **Apply options** |
 | `run-apply` | Run terraform apply | No | `false` |
 | `use-plan-file` | Path to existing plan file to apply (skips plan step) | No | `''` |
@@ -110,7 +111,7 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Azure and Terraform
         uses: testfy-ai/actions/setup-azure-terraform@main
@@ -137,7 +138,7 @@ jobs:
       matrix:
         environment: [dev, staging, prod]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Azure and Terraform
         uses: testfy-ai/actions/setup-azure-terraform@main
@@ -173,7 +174,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Azure and Terraform
         uses: testfy-ai/actions/setup-azure-terraform@main
@@ -531,7 +532,7 @@ jobs:
       matrix:
         environment: [shared, dev, test, stage, prod]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Azure and Terraform
         uses: testfy-ai/actions/setup-azure-terraform@main
@@ -607,7 +608,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Azure and Terraform
         uses: testfy-ai/actions/setup-azure-terraform@main
@@ -643,7 +644,7 @@ jobs:
           plan-has-changes: ${{ steps.terraform.outputs.plan-has-changes }}
 
       - name: Upload Plan
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tfplan-${{ inputs.environment }}
           path: ./envs/${{ inputs.environment }}/tfplan
@@ -653,7 +654,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Azure and Terraform
         uses: testfy-ai/actions/setup-azure-terraform@main
@@ -663,7 +664,7 @@ jobs:
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Download Plan
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: tfplan-${{ inputs.environment }}
           path: ./envs/${{ inputs.environment }}
@@ -702,7 +703,7 @@ jobs:
       matrix:
         environment: [dev, stage, prod]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Azure and Terraform
         uses: testfy-ai/actions/setup-azure-terraform@main
@@ -730,7 +731,7 @@ jobs:
           plan-has-changes: ${{ steps.terraform.outputs.plan-has-changes }}
 
       - name: Upload Plan
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: plan-${{ matrix.environment }}
           path: |
@@ -743,7 +744,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Azure and Terraform
         uses: testfy-ai/actions/setup-azure-terraform@main
@@ -753,7 +754,7 @@ jobs:
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Download Plan
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: plan-prod
           path: ./envs/prod
