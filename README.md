@@ -644,7 +644,7 @@ jobs:
           plan-has-changes: ${{ steps.terraform.outputs.plan-has-changes }}
 
       - name: Upload Plan
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan-${{ inputs.environment }}
           path: ./envs/${{ inputs.environment }}/tfplan
@@ -664,7 +664,7 @@ jobs:
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Download Plan
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: tfplan-${{ inputs.environment }}
           path: ./envs/${{ inputs.environment }}
@@ -731,7 +731,7 @@ jobs:
           plan-has-changes: ${{ steps.terraform.outputs.plan-has-changes }}
 
       - name: Upload Plan
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: plan-${{ matrix.environment }}
           path: |
@@ -754,7 +754,7 @@ jobs:
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Download Plan
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: plan-prod
           path: ./envs/prod
