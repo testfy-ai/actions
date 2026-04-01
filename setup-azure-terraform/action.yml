@@ -41,7 +41,7 @@ runs:
   steps:
     - name: Setup Terraform
       id: terraform
-      uses: hashicorp/setup-terraform@v3
+      uses: hashicorp/setup-terraform@v4
       with:
         terraform_version: ${{ inputs.terraform-version }}
         terraform_wrapper: ${{ inputs.terraform-wrapper }}
@@ -77,7 +77,7 @@ runs:
           core.endGroup();
 
     - name: Azure Login (OIDC)
-      uses: azure/login@v2
+      uses: azure/login@v3
       with:
         client-id: ${{ inputs.azure-client-id }}
         tenant-id: ${{ inputs.azure-tenant-id }}
