@@ -207,6 +207,18 @@ runs:
               ''
             ];
 
+            // Per-resource breakdown (mirrors the "Extracting Plan Summary" step
+            // log) — grouped by action, just below Details. Empty groups are skipped.
+            const renderGroup = (label, marker, arr) => {
+              if (arr.length === 0) return;
+              lines.push(`**${label} (${arr.length}):**`, '');
+              arr.forEach(addr => lines.push(`- \`${marker} ${addr}\``));
+              lines.push('');
+            };
+            renderGroup('Resources to add', '+', resourcesToAdd);
+            renderGroup('Resources to change', '~', resourcesToChange);
+            renderGroup('Resources to destroy', '-', resourcesToDestroy);
+
             // Terraform plan output — rendered in a collapsible just below Details.
             const planOutputPath = `${workingDir}/${process.env.PLAN_OUTPUT_FILE || 'plan-output.txt'}`;
             if (fs.existsSync(planOutputPath)) {
