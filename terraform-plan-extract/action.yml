@@ -42,10 +42,6 @@ inputs:
     description: 'GitHub run URL (summary footer link)'
     required: false
     default: ''
-  plan-output-file:
-    description: 'Human-readable terraform plan output file (rendered in a collapsible just below Details)'
-    required: false
-    default: 'plan-output.txt'
   write-summary:
     description: 'Whether this action writes the GitHub job summary (set false to let the caller render it)'
     required: false
@@ -100,7 +96,6 @@ runs:
         ACTOR: ${{ inputs.actor }}
         RUN_NUMBER: ${{ inputs.run-number }}
         RUN_URL: ${{ inputs.run-url }}
-        PLAN_OUTPUT_FILE: ${{ inputs.plan-output-file }}
         WRITE_SUMMARY: ${{ inputs.write-summary }}
       with:
         script: |
@@ -207,44 +202,27 @@ runs:
               ''
             ];
 
-            // Per-resource breakdown (mirrors the "Extracting Plan Summary" step
-            // log) — grouped by action, just below Details. Empty groups are skipped.
-            const renderGroup = (label, marker, arr) => {
-              if (arr.length === 0) return;
-              lines.push(`**${label} (${arr.length}):**`, '');
-              arr.forEach(addr => lines.push(`- \`${marker} ${addr}\``));
-              lines.push('');
-            };
-            renderGroup('Resources to add', '+', resourcesToAdd);
-            renderGroup('Resources to change', '~', resourcesToChange);
-            renderGroup('Resources to destroy', '-', resourcesToDestroy);
-
-            // Terraform plan output — rendered in a collapsible just below Details.
-            const planOutputPath = `${workingDir}/${process.env.PLAN_OUTPUT_FILE || 'plan-output.txt'}`;
-            if (fs.existsSync(planOutputPath)) {
-              let planText = fs.readFileSync(planOutputPath, 'utf8').trimEnd();
-              const MAX = 80000; // GitHub step-summary cap is 1 MiB; stay well under it.
-              let note = '';
-              if (planText.length > MAX) {
-                planText = planText.slice(-MAX);
-                note = `> _Output truncated to the last ${MAX} characters — see the full run log / plan artifact._\n\n`;
-              }
-              // Use a longer fence if the plan text itself contains a triple backtick.
-              const fence = planText.includes('```') ? '````' : '```';
-              lines.push(
-                '<details>',
-                '<summary>📋 Terraform plan output</summary>',
-                '',
-                `${note}${fence}`,
-                planText,
-                fence,
-                '',
-                '</details>',
-                ''
-              );
-            } else {
-              core.warning(`Plan output file not found at ${planOutputPath} — summary will omit the plan output.`);
-            }
+            // "Terraform plan output" — mirrors the "Extracting Plan Summary for
+            // <env>" step log: plan file, plan type, and the per-resource
+            // add/change/destroy breakdown (with addresses). Always shown.
+            const planOutputLines = [
+              `  Plan file: ${planFile}`,
+              `  Plan type: ${planType}`,
+              `  Resources to add: ${add}`,
+              ...resourcesToAdd.map(a => `    + ${a}`),
+              `  Resources to change: ${change}`,
+              ...resourcesToChange.map(a => `    ~ ${a}`),
+              `  Resources to destroy: ${destroy}`,
+              ...resourcesToDestroy.map(a => `    - ${a}`)
+            ];
+            lines.push(
+              '**📋 Terraform plan output**',
+              '',
+              '```',
+              ...planOutputLines,
+              '```',
+              ''
+            );
 
             if (process.env.ACTOR) {
               lines.push(`*Triggered by: @${process.env.ACTOR}*`);
