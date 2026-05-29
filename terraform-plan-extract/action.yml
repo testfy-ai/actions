@@ -216,11 +216,14 @@ runs:
               ...resourcesToDestroy.map(a => `    - ${a}`)
             ];
             lines.push(
-              '**📋 Terraform plan output**',
+              '<details>',
+              '<summary>📋 Terraform plan output</summary>',
               '',
               '```',
               ...planOutputLines,
               '```',
+              '',
+              '</details>',
               ''
             );
 
