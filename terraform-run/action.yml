@@ -337,11 +337,14 @@ runs:
           if (generateJson) {
             core.info('Generating plan JSON...');
             try {
-              const jsonResult = execSync(`terraform show -no-color -json ${planFile}`, {
-                cwd: workingDir,
-                encoding: 'utf8'
+              // Stream `terraform show -json` straight to disk via shell
+              // redirect — never capture stdout into a JS buffer. A large
+              // prod plan's JSON exceeds execSync's default 1 MB maxBuffer and
+              // was throwing ENOBUFS (empty ${planFile}.json + a noisy
+              // ##[error] + unreliable plan-summary counts downstream).
+              execSync(`terraform show -no-color -json ${planFile} > ${planFile}.json`, {
+                cwd: workingDir
               });
-              fs.writeFileSync(`${workingDir}/${planFile}.json`, jsonResult);
               core.info('Plan JSON generated successfully');
             } catch (error) {
               core.error(`Failed to generate JSON: ${error.message}`);
