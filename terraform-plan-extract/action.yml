@@ -25,6 +25,32 @@ inputs:
     required: false
     default: 'apply'
 
+  # Job-summary rendering (this action renders the full plan summary)
+  outcome:
+    description: 'Plan outcome (success/failure) — drives the summary header icon'
+    required: false
+    default: 'success'
+  actor:
+    description: 'GitHub actor who triggered the run (summary footer)'
+    required: false
+    default: ''
+  run-number:
+    description: 'GitHub run number (summary footer)'
+    required: false
+    default: ''
+  run-url:
+    description: 'GitHub run URL (summary footer link)'
+    required: false
+    default: ''
+  plan-output-file:
+    description: 'Human-readable terraform plan output file (rendered in a collapsible just below Details)'
+    required: false
+    default: 'plan-output.txt'
+  write-summary:
+    description: 'Whether this action writes the GitHub job summary (set false to let the caller render it)'
+    required: false
+    default: 'true'
+
 outputs:
   # Summary
   summary:
@@ -70,6 +96,12 @@ runs:
         WORKING_DIR: ${{ inputs.working-directory }}
         PLAN_FILE: ${{ inputs.plan-file }}
         PLAN_TYPE: ${{ inputs.plan-type }}
+        OUTCOME: ${{ inputs.outcome }}
+        ACTOR: ${{ inputs.actor }}
+        RUN_NUMBER: ${{ inputs.run-number }}
+        RUN_URL: ${{ inputs.run-url }}
+        PLAN_OUTPUT_FILE: ${{ inputs.plan-output-file }}
+        WRITE_SUMMARY: ${{ inputs.write-summary }}
       with:
         script: |
           const fs = require('fs');
@@ -153,3 +185,61 @@ runs:
           core.setOutput('resources_to_add', resourcesToAdd.join('\n'));
           core.setOutput('resources_to_change', resourcesToChange.join('\n'));
           core.setOutput('resources_to_destroy', resourcesToDestroy.join('\n'));
+
+          // ----- Job summary (this action renders the entire plan summary) -----
+          if ((process.env.WRITE_SUMMARY || 'true') === 'true') {
+            const outcome = process.env.OUTCOME || 'success';
+            const icon = outcome === 'success' ? '✅' : '❌';
+            const heading = planType === 'destroy' ? 'Terraform Plan (Destroy)' : 'Terraform Plan';
+            const lines = [
+              `## ${icon} ${heading}`,
+              '',
+              `**Environment:** ${env}`,
+              `**Outcome:** ${outcome}`,
+              '',
+              '### Changes Summary',
+              '',
+              '| Add | Change | Destroy |',
+              '|-----|--------|---------|',
+              `| +${add} | ~${change} | -${destroy} |`,
+              '',
+              `**Details:** ${summary}`,
+              ''
+            ];
+
+            // Terraform plan output — rendered in a collapsible just below Details.
+            const planOutputPath = `${workingDir}/${process.env.PLAN_OUTPUT_FILE || 'plan-output.txt'}`;
+            if (fs.existsSync(planOutputPath)) {
+              let planText = fs.readFileSync(planOutputPath, 'utf8').trimEnd();
+              const MAX = 80000; // GitHub step-summary cap is 1 MiB; stay well under it.
+              let note = '';
+              if (planText.length > MAX) {
+                planText = planText.slice(-MAX);
+                note = `> _Output truncated to the last ${MAX} characters — see the full run log / plan artifact._\n\n`;
+              }
+              // Use a longer fence if the plan text itself contains a triple backtick.
+              const fence = planText.includes('```') ? '````' : '```';
+              lines.push(
+                '<details>',
+                '<summary>📋 Terraform plan output</summary>',
+                '',
+                `${note}${fence}`,
+                planText,
+                fence,
+                '',
+                '</details>',
+                ''
+              );
+            } else {
+              core.warning(`Plan output file not found at ${planOutputPath} — summary will omit the plan output.`);
+            }
+
+            if (process.env.ACTOR) {
+              lines.push(`*Triggered by: @${process.env.ACTOR}*`);
+            }
+            if (process.env.RUN_URL) {
+              lines.push(`*Run: [#${process.env.RUN_NUMBER || ''}](${process.env.RUN_URL})*`);
+            }
+
+            await core.summary.addRaw(lines.join('\n')).write();
+          }
